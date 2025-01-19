@@ -51,7 +51,7 @@ jobs:
           if [ -s modified_lambdas.txt ]; then
             echo "Deploying modified Lambdas..."
             # Read the modified Lambdas from the file
-            while read -r lambda; do
+            while IFS= read -r lambda; do
               echo "Deploying Lambda: $lambda"
               cd lambdas/$lambda
               
