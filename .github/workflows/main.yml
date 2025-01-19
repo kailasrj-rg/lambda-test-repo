@@ -1,9 +1,17 @@
 name: Deploy Lambdas
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to observe'
+        required: true
+        default: 'main'
   push:
     branches:
       - main
+    paths:
+      - 'lambdas/**'
 
 jobs:
   deploy_lambdas:
