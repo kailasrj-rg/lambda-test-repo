@@ -41,8 +41,8 @@ jobs:
 
       - name: Debug: Check if Modified Lambdas exist
         run: |
-          cat modified_lambdas.txt
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
+          cat modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
         if: steps.detect_changes.outputs.modified != ''
