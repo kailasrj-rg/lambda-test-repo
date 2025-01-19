@@ -25,21 +25,24 @@ jobs:
       - name: Detect Modified Lambdas
         id: detect_changes
         run: |
-          # Find all modified files in lambdas folder
-          MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | uniq)
+          # Ensure at least one commit exists before using HEAD^
+          if git rev-parse --verify HEAD^ &>/dev/null; then
+            MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | uniq)
+          else
+            MODIFIED_LAMBDAS=$(git ls-files 'lambdas/' | awk -F/ '{print $2}' | uniq)
+          fi
           echo "Modified Lambdas: $MODIFIED_LAMBDAS"
-          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
+          echo "modified=$MODIFIED_LAMBDAS" >> $GITHUB_ENV
 
       - name: Deploy Modified Lambdas
-        if: steps.detect_changes.outputs.modified != ''
+        if: env.modified != ''
         run: |
-          for lambda in ${{ steps.detect_changes.outputs.modified }}; do
+          for lambda in ${{ env.modified }}; do
             echo "Deploying Lambda: $lambda"
             cd lambdas/$lambda
-
-            # Install dependencies for the Lambda with CI environment variable
+            
+            # Install dependencies for the Lambda
             npm ci --only=prod
-            env CI=true npm ci
 
             # Zip the Lambda folder
             zip -r ../../$lambda.zip . 
