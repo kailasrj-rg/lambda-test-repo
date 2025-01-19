@@ -33,39 +33,42 @@ jobs:
       - name: Detect Modified Lambdas
         id: detect_changes
         run: |
+          # Ensure at least one commit exists before using HEAD^
           if git rev-parse --verify HEAD^ &>/dev/null; then
             MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | sort | uniq)
           else
             MODIFIED_LAMBDAS=$(git ls-files 'lambdas/' | awk -F/ '{print $2}' | sort | uniq)
           fi
           echo "Modified Lambdas: $MODIFIED_LAMBDAS"
-
+          
           # Save modified Lambdas to a file
           echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
-          # Use environment files instead of set-output (deprecated)
-          echo "modified=$MODIFIED_LAMBDAS" >> $GITHUB_ENV
+          # Set the output for the next step
+          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas Exist
+      - name: Check if Modified Lambdas exist
         run: |
-          echo "Modified Lambdas: ${{ env.modified }}"
+          echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
           cat modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
-        if: env.modified != ''
+        if: steps.detect_changes.outputs.modified != ''
         run: |
+          # Check if the modified_lambdas.txt file exists and is not empty
           if [ -s modified_lambdas.txt ]; then
             echo "Deploying modified Lambdas..."
+            # Read the modified Lambdas from the file
             while IFS= read -r lambda; do
               echo "Deploying Lambda: $lambda"
               cd lambdas/$lambda
-
-              # Install dependencies
+              
+              # Install dependencies for the Lambda
               npm ci --only=prod
 
               # Zip the Lambda folder
-              zip -r ../../$lambda.zip .
-
+              zip -r ../../$lambda.zip . 
+              
               # Deploy to AWS Lambda
               aws lambda update-function-code \
                 --function-name $lambda \
@@ -74,4 +77,4 @@ jobs:
             done < modified_lambdas.txt
           else
             echo "No modified Lambdas to deploy."
-          fi
+          fi  # Closing the 'if' block
