@@ -32,16 +32,15 @@ jobs:
             MODIFIED_LAMBDAS=$(git ls-files 'lambdas/' | awk -F/ '{print $2}' | uniq)
           fi
           echo "Modified Lambdas: $MODIFIED_LAMBDAS"
-          echo "MODIFIED_LAMBDAS=$MODIFIED_LAMBDAS" >> $GITHUB_ENV
+          
+          # Save modified Lambdas to a file
+          echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
-        if: env.MODIFIED_LAMBDAS != ''
+        if: success() && steps.detect_changes.outputs.modified != ''
         run: |
-          # Convert the modified lambdas into an array
-          IFS=' ' read -r -a lambdas <<< "$MODIFIED_LAMBDAS"
-          
-          # Deploy each lambda
-          for lambda in "${lambdas[@]}"; do
+          # Read the modified Lambdas from the file
+          while read -r lambda; do
             echo "Deploying Lambda: $lambda"
             cd lambdas/$lambda
             
@@ -56,4 +55,4 @@ jobs:
               --function-name $lambda \
               --zip-file fileb://../../$lambda.zip
             cd ../..
-          done
+          done < modified_lambdas.txt
