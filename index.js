@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 export const handler = async (event) => {
-    // TODO implement Testing final job
+    // TODO implement Testing final job without build
     const max = 100;
     const val = _.random(max);
     const response = {
