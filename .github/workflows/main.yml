@@ -39,7 +39,7 @@ jobs:
           # Set the output for the next step
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Debug: Check if Modified Lambdas exist
+      - name: Check if Modified Lambdas exist
         run: |
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
           cat modified_lambdas.txt
