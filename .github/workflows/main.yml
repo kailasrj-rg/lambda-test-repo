@@ -37,7 +37,7 @@ jobs:
           echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
-        if: success() && fileexists('modified_lambdas.txt') && steps.detect_changes.outputs.modified != ''
+        if: steps.detect_changes.outputs.modified != ''
         run: |
           # Check if the modified_lambdas.txt file exists and is not empty
           if [ -s modified_lambdas.txt ]; then
@@ -60,4 +60,3 @@ jobs:
             done < modified_lambdas.txt
           else
             echo "No modified Lambdas to deploy."
-          fi

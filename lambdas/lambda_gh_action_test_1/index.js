@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 export const handler = async (event) => {
-    // Lamda TEST 1 !!!!!
+    // Lamda TEST 1 !!!!!!
     const max = 100;
     const val = _.random(max);
     const response = {
