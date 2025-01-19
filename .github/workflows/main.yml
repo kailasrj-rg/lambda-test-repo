@@ -37,22 +37,27 @@ jobs:
           echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
-        if: success() && steps.detect_changes.outputs.modified != ''
+        if: success() && fileexists('modified_lambdas.txt') && steps.detect_changes.outputs.modified != ''
         run: |
-          # Read the modified Lambdas from the file
-          while read -r lambda; do
-            echo "Deploying Lambda: $lambda"
-            cd lambdas/$lambda
-            
-            # Install dependencies for the Lambda
-            npm ci --only=prod
+          # Check if the modified_lambdas.txt file exists and is not empty
+          if [ -s modified_lambdas.txt ]; then
+            # Read the modified Lambdas from the file
+            while read -r lambda; do
+              echo "Deploying Lambda: $lambda"
+              cd lambdas/$lambda
+              
+              # Install dependencies for the Lambda
+              npm ci --only=prod
 
-            # Zip the Lambda folder
-            zip -r ../../$lambda.zip . 
-            
-            # Deploy to AWS Lambda
-            aws lambda update-function-code \
-              --function-name $lambda \
-              --zip-file fileb://../../$lambda.zip
-            cd ../..
-          done < modified_lambdas.txt
+              # Zip the Lambda folder
+              zip -r ../../$lambda.zip . 
+              
+              # Deploy to AWS Lambda
+              aws lambda update-function-code \
+                --function-name $lambda \
+                --zip-file fileb://../../$lambda.zip
+              cd ../..
+            done < modified_lambdas.txt
+          else
+            echo "No modified Lambdas to deploy."
+          fi
