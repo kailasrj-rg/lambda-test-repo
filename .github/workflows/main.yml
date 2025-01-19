@@ -1,30 +1,52 @@
-name: Deploy
+name: Deploy Lambdas
 
 on:
   push:
     branches:
-    - main
+      - main
 
 jobs:
-  deploy_lambda:
+  deploy_lambdas:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
       - uses: actions/setup-node@v2
         with:
           node-version: '22'
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: npm install
-        env:
-          CI: true
+
+      - name: Detect Modified Lambdas
+        id: detect_changes
         run: |
-          npm ci
-      - name: deploy
+          # Find all modified files in lambdas folder
+          MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | uniq)
+          echo "Modified Lambdas: $MODIFIED_LAMBDAS"
+          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
+
+      - name: Deploy Modified Lambdas
+        if: steps.detect_changes.outputs.modified != ''
         run: |
-          zip -j deploy.zip ./*
-          aws lambda update-function-code --function-name=lambda-gh-action-test --zip-file=fileb://deploy.zip
+          for lambda in ${{ steps.detect_changes.outputs.modified }}; do
+            echo "Deploying Lambda: $lambda"
+            cd lambdas/$lambda
+
+            # Install dependencies for the Lambda with CI environment variable
+            npm ci --only=prod
+            env CI=true npm ci
+
+            # Zip the Lambda folder
+            zip -r ../../$lambda.zip . 
+            
+            # Deploy to AWS Lambda
+            aws lambda update-function-code \
+              --function-name $lambda \
+              --zip-file fileb://../../$lambda.zip
+            cd ../..
+          done
