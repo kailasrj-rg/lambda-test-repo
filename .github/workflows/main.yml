@@ -69,3 +69,4 @@ jobs:
             done < modified_lambdas.txt
           else
             echo "No modified Lambdas to deploy."
+          fi  # Closing the 'if' block
