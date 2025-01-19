@@ -36,11 +36,20 @@ jobs:
           # Save modified Lambdas to a file
           echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
+          # Set the output for the next step
+          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
+
+      - name: Debug: Check if Modified Lambdas exist
+        run: |
+          cat modified_lambdas.txt
+          echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
+
       - name: Deploy Modified Lambdas
         if: steps.detect_changes.outputs.modified != ''
         run: |
           # Check if the modified_lambdas.txt file exists and is not empty
           if [ -s modified_lambdas.txt ]; then
+            echo "Deploying modified Lambdas..."
             # Read the modified Lambdas from the file
             while read -r lambda; do
               echo "Deploying Lambda: $lambda"
