@@ -96,7 +96,7 @@ jobs:
             fi
 
            # Extract Lambda name by removing the dev/ or prod/ prefix
-           lambda=$(echo "$lambda_path" | awk -F/ '{print $2}')
+           lambda=$(echo "$lambda_path" | awk -F/ '{print $3}')
 
             echo "Processing Lambda: $lambda"
 
