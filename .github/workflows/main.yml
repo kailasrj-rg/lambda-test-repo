@@ -45,8 +45,14 @@ jobs:
           echo "Modified files:"
           echo "$MODIFIED_FILES"
 
+          # Log paths containing index.js only
+          INDEX_JS_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/' | grep '/index\.js$')
+          echo "Paths with index.js files:"
+          echo "$INDEX_JS_PATHS"
+
+
           # Filter files belonging to Lambdas and extract folder names
-          MODIFIED_LAMBDAS=$(echo "$MODIFIED_FILES" | grep '^lambdas/' | grep -E '\.(js|json)$' | awk -F/ '{print $2}' | sort | uniq)
+          MODIFIED_LAMBDAS=$(echo "$INDEX_JS_PATHS" | awk -F/ '{print $2}' | sort | uniq)
 
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
