@@ -61,7 +61,7 @@ jobs:
 
 
           # Filter files belonging to Lambdas and extract folder names
-          MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2}' | sort | uniq)
+          MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
 
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
