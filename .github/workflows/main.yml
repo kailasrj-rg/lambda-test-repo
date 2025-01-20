@@ -110,22 +110,22 @@ jobs:
               continue
             fi
 
-            echo "Deploying Lambda: $lambda"
+            echo "Deploying Lambda: $LAMBDA_NAME"
             cd lambdas/$lambda
 
             # Install dependencies
-            echo "Installing dependencies for $lambda..."
+            echo "Installing dependencies for $LAMBDA_NAME..."
             npm ci --only=prod
 
             # Zip Lambda folder
-            echo "Creating deployment package for $lambda..."
-            zip -r ../../$lambda.zip . > /dev/null
+            echo "Creating deployment package for $LAMBDA_NAME..."
+            zip -r ../../$LAMBDA_NAME.zip . > /dev/null
 
             # Deploy to AWS Lambda
-            echo "Deploying $lambda to AWS..."
+            echo "Deploying $LAMBDA_NAME to AWS..."
             aws lambda update-function-code \
-              --function-name $lambda \
-              --zip-file fileb://../../$lambda.zip
+              --function-name $LAMBDA_NAME \
+              --zip-file fileb://../../$LAMBDA_NAME.zip
 
             echo "Successfully deployed $lambda."
             cd ../../..
