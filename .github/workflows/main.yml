@@ -34,17 +34,24 @@ jobs:
         id: detect_changes
         run: |
           echo "Detecting modified Lambda folders..."
-          # Check if there's a previous commit
+          
+          # Identify modified files
           if git rev-parse --verify HEAD^ &>/dev/null; then
-            MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | sort | uniq)
+            MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
           else
-            MODIFIED_LAMBDAS=$(git ls-files 'lambdas/' | awk -F/ '{print $2}' | sort | uniq)
+            MODIFIED_FILES=$(git ls-files)
           fi
+
+          echo "Modified files:"
+          echo "$MODIFIED_FILES"
+
+          # Filter files belonging to Lambdas and extract folder names
+          MODIFIED_LAMBDAS=$(echo "$MODIFIED_FILES" | grep '^lambdas/' | awk -F/ '{print $2}' | sort | uniq)
 
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
 
-          # Save modified Lambdas to file (remove empty lines)
+          # Save modified Lambdas to a file
           echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
           echo "Contents of modified_lambdas.txt:"
           cat modified_lambdas.txt
@@ -52,7 +59,7 @@ jobs:
           # Set output for next steps
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas exist
+      - name: Check if Modified Lambdas Exist
         run: |
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
           if [ ! -s modified_lambdas.txt ]; then
