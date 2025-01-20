@@ -46,7 +46,7 @@ jobs:
           echo "$MODIFIED_FILES"
 
           # Filter files belonging to Lambdas and extract folder names
-          MODIFIED_LAMBDAS=$(echo "$MODIFIED_FILES" | grep '^lambdas/' | awk -F/ '{print $2}' | sort | uniq)
+          MODIFIED_LAMBDAS=$(echo "$MODIFIED_FILES" | grep '^lambdas/' | grep -E '\.(js|json)$' | awk -F/ '{print $2}' | sort | uniq)
 
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
