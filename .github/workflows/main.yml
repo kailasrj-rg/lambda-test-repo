@@ -17,9 +17,11 @@ jobs:
   deploy_lambdas:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v2
+      - name: Set Up Node.js
+        uses: actions/setup-node@v2
         with:
           node-version: '22'
 
@@ -34,19 +36,19 @@ jobs:
         id: detect_changes
         run: |
           echo "Detecting modified Lambda folders..."
-          
-          # Check if we are in a shallow clone and fetch history if needed
+
+          # Check for shallow clone
           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-            echo "Repository is in shallow state. Fetching history..."
+            echo "Repository is in a shallow state. Fetching full history..."
             git fetch --unshallow || true
           fi
 
-          # Check if HEAD^ exists
+          # Check for previous commit
           if git rev-parse --verify HEAD^ &>/dev/null; then
-            echo "HEAD^ found. Fetching modified files since the last commit."
+            echo "Fetching modified files since last commit."
             MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
           else
-            echo "HEAD^ not found. Falling back to detecting changes from the first commit."
+            echo "No previous commit. Detecting all changes from the first commit."
             FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
             MODIFIED_FILES=$(git diff --name-only $FIRST_COMMIT HEAD)
           fi
@@ -54,19 +56,17 @@ jobs:
           echo "Modified files:"
           echo "$MODIFIED_FILES"
 
-          # Log paths containing version.json only
+          # Filter files for version.json
           VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*version\.json$')
           echo "Paths with version.json files:"
           echo "$VERSION_JSON_PATHS"
 
-
-          # Filter files belonging to Lambdas and extract folder names
+          # Extract Lambda paths
           MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
-
-          echo "Modified Lambdas detected:"
+          echo "Modified Lambda folders:"
           echo "$MODIFIED_LAMBDAS"
 
-          # Save modified Lambdas to a file
+          # Save to file
           echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
           echo "Contents of modified_lambdas.txt:"
           cat modified_lambdas.txt
@@ -74,57 +74,59 @@ jobs:
           # Set output for next steps
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas Exist
+      - name: Validate Modified Lambdas
         run: |
+          echo "Validating modified Lambdas..."
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
           if [ ! -s modified_lambdas.txt ]; then
-            echo "No modified Lambdas found."
+            echo "No modified Lambdas detected. Exiting."
             exit 0
-          else
-            echo "Modified Lambdas file contents:"
-            cat modified_lambdas.txt
           fi
+          echo "Detected modified Lambdas:"
+          cat modified_lambdas.txt
 
       - name: Deploy Modified Lambdas
         if: steps.detect_changes.outputs.modified != ''
         run: |
-          echo "Deploying modified Lambdas..."
+          echo "Starting deployment of modified Lambdas..."
           while IFS= read -r lambda_path; do
             if [ -z "$lambda_path" ]; then
-              echo "Skipping empty line."
+              echo "Empty line detected. Skipping."
               continue
             fi
 
-           # Extract Lambda name by removing the dev/ or prod/ prefix
-           lambda=$(echo "$lambda_path" | awk -F/ '{print $3}')
+            # Extract Lambda name
+            lambda=$(echo "$lambda_path" | awk -F/ '{print $3}')
+            echo "Processing Lambda: $lambda (Path: $lambda_path)"
 
-            echo "Processing Lambda: $lambda"
-
-            # Check if Lambda folder exists
+            # Validate Lambda folder existence
             if [ ! -d "lambdas/$lambda_path" ]; then
-              echo "Warning: Folder 'lambdas/$lambda_path' does not exist. Skipping..."
+              echo "Folder 'lambdas/$lambda_path' does not exist. Skipping..."
               continue
             fi
 
-            echo "Deploying Lambda: $lambda"
+            # Change directory to Lambda folder
             cd lambdas/$lambda_path
 
             # Install dependencies
             echo "Installing dependencies for $lambda..."
             npm ci --only=prod
 
+            # Create zips folder
             mkdir -p ../../zips
-
-            # Zip Lambda folder
             echo "Creating deployment package for $lambda..."
             zip -r ../../zips/$lambda.zip .
+            echo "Package created: zips/$lambda.zip"
 
             # Deploy to AWS Lambda
-            echo "Deploying $lambda to AWS..."
+            echo "Deploying $lambda to AWS Lambda..."
             aws lambda update-function-code \
               --function-name $lambda \
-              --zip-file fileb://../../zips/$lambda.zip
+              --zip-file fileb://../../zips/$lambda.zip || { 
+                echo "Failed to deploy $lambda. Check the logs.";
+                exit 1;
+              }
 
             echo "Successfully deployed $lambda."
-            cd ../..
+            cd ../../..
           done < modified_lambdas.txt
