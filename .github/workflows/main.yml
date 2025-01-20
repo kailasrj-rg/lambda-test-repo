@@ -89,8 +89,8 @@ jobs:
         if: steps.detect_changes.outputs.modified != ''
         run: |
           echo "Deploying modified Lambdas..."
-          while IFS= read -r lambda; do
-            if [ -z "$lambda" ]; then
+          while IFS= read -r lambda_path; do
+            if [ -z "$lambda_path" ]; then
               echo "Skipping empty line."
               continue
             fi
@@ -101,27 +101,29 @@ jobs:
             echo "Processing Lambda: $lambda"
 
             # Check if Lambda folder exists
-            if [ ! -d "lambdas/$lambda" ]; then
-              echo "Warning: Folder 'lambdas/$lambda' does not exist. Skipping..."
+            if [ ! -d "lambdas/$lambda_path" ]; then
+              echo "Warning: Folder 'lambdas/$lambda_path' does not exist. Skipping..."
               continue
             fi
 
             echo "Deploying Lambda: $lambda"
-            cd lambdas/$lambda
+            cd lambdas/$lambda_path
 
             # Install dependencies
             echo "Installing dependencies for $lambda..."
             npm ci --only=prod
 
+            mkdir -p ../../zips
+
             # Zip Lambda folder
             echo "Creating deployment package for $lambda..."
-            zip -r ../../$lambda.zip .
+            zip -r ../../zips/$lambda.zip .
 
             # Deploy to AWS Lambda
             echo "Deploying $lambda to AWS..."
             aws lambda update-function-code \
               --function-name $lambda \
-              --zip-file fileb://../../$lambda.zip
+              --zip-file fileb://../../zips/$lambda.zip
 
             echo "Successfully deployed $lambda."
             cd ../..
