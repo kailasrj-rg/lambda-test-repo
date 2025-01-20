@@ -35,11 +35,14 @@ jobs:
         run: |
           echo "Detecting modified Lambda folders..."
           
-          # Identify modified files
+          # Check if HEAD^ exists
           if git rev-parse --verify HEAD^ &>/dev/null; then
+            echo "HEAD^ found. Fetching modified files since the last commit."
             MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
           else
-            MODIFIED_FILES=$(git ls-files)
+            echo "HEAD^ not found. Falling back to listing all tracked files."
+            git fetch --unshallow || true
+            MODIFIED_FILES=$(git diff --name-only $(git rev-list --max-parents=0 HEAD) HEAD)
           fi
 
           echo "Modified files:"
