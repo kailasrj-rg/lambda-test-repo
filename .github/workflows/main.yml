@@ -55,12 +55,16 @@ jobs:
           echo "$MODIFIED_FILES"
 
           # Log paths containing version.json only
-          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*/version\.json$')
+          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*/version\.json$' || true)
           echo "Paths with version.json files:"
           echo "$VERSION_JSON_PATHS"
 
           # Filter files belonging to Lambdas and extract folder names
-          MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
+          if [ -n "$VERSION_JSON_PATHS" ]; then
+            MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
+          else
+            MODIFIED_LAMBDAS=""
+          fi
 
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
@@ -68,7 +72,7 @@ jobs:
           # Save modified Lambdas to a file
           echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
           echo "Contents of modified_lambdas.txt:"
-          cat modified_lambdas.txt
+          cat modified_lambdas.txt || echo "No Lambdas modified."
 
           # Set output for next steps
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
