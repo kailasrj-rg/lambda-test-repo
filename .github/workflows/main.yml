@@ -33,48 +33,69 @@ jobs:
       - name: Detect Modified Lambdas
         id: detect_changes
         run: |
-          # Ensure at least one commit exists before using HEAD^
+          echo "Detecting modified Lambda folders..."
+          # Check if there's a previous commit
           if git rev-parse --verify HEAD^ &>/dev/null; then
             MODIFIED_LAMBDAS=$(git diff --name-only HEAD^ HEAD | grep '^lambdas/' | awk -F/ '{print $2}' | sort | uniq)
           else
             MODIFIED_LAMBDAS=$(git ls-files 'lambdas/' | awk -F/ '{print $2}' | sort | uniq)
           fi
-          echo "Modified Lambdas: $MODIFIED_LAMBDAS"
-          
-          # Save modified Lambdas to a file
-          echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
 
-          # Set the output for the next step
+          echo "Modified Lambdas detected:"
+          echo "$MODIFIED_LAMBDAS"
+
+          # Debug: Print each Lambda detected
+          for lambda in $MODIFIED_LAMBDAS; do
+            echo "Detected Lambda folder: $lambda"
+          done
+
+          # Save modified Lambdas to file
+          echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
+          cat modified_lambdas.txt
+
+          # Set output for next steps
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas exist
+      - name: Check if Modified Lambdas Exist
         run: |
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
-          cat modified_lambdas.txt
+          if [ -s modified_lambdas.txt ]; then
+            echo "Modified Lambdas file contents:"
+            cat modified_lambdas.txt
+          else
+            echo "No modified Lambdas found."
+            exit 0
 
       - name: Deploy Modified Lambdas
         if: steps.detect_changes.outputs.modified != ''
         run: |
-          # Check if the modified_lambdas.txt file exists and is not empty
-          if [ -s modified_lambdas.txt ]; then
-            echo "Deploying modified Lambdas..."
-            # Read the modified Lambdas from the file
-            while IFS= read -r lambda; do
-              echo "Deploying Lambda: $lambda"
-              cd lambdas/$lambda
-              
-              # Install dependencies for the Lambda
-              npm ci --only=prod
+          echo "Deploying modified Lambdas..."
+          while IFS= read -r lambda; do
+            echo "Processing Lambda: $lambda"
 
-              # Zip the Lambda folder
-              zip -r ../../$lambda.zip . 
-              
-              # Deploy to AWS Lambda
-              aws lambda update-function-code \
-                --function-name $lambda \
-                --zip-file fileb://../../$lambda.zip
-              cd ../..
-            done < modified_lambdas.txt
-          else
-            echo "No modified Lambdas to deploy."
-          fi  # Closing the 'if' block
+            # Check if Lambda folder exists
+            if [ ! -d "lambdas/$lambda" ]; then
+              echo "Warning: Folder 'lambdas/$lambda' does not exist. Skipping..."
+              continue
+            fi
+
+            echo "Deploying Lambda: $lambda"
+            cd lambdas/$lambda
+
+            # Install dependencies
+            echo "Installing dependencies for $lambda..."
+            npm ci --only=prod
+
+            # Zip Lambda folder
+            echo "Creating deployment package for $lambda..."
+            zip -r ../../$lambda.zip .
+
+            # Deploy to AWS Lambda
+            echo "Deploying $lambda to AWS..."
+            aws lambda update-function-code \
+              --function-name $lambda \
+              --zip-file fileb://../../$lambda.zip
+
+            echo "Successfully deployed $lambda."
+            cd ../..
+          done < modified_lambdas.txt
