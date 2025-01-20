@@ -40,7 +40,7 @@ jobs:
           # Check for shallow clone
           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
             echo "Repository is in a shallow state. Fetching full history..."
-            git fetch --unshallow || true
+            git fetch --unshallow || { echo "Failed to unshallow repository"; exit 1; }
           fi
 
           # Check for previous commit
@@ -56,8 +56,14 @@ jobs:
           echo "Modified files:"
           echo "$MODIFIED_FILES"
 
+          # Check if any files were modified
+          if [ -z "$MODIFIED_FILES" ]; then
+            echo "No files were modified. Exiting."
+            exit 0
+          fi
+
           # Filter files for version.json
-          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*version\.json$')
+          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*version\.json$' || true)
           echo "Paths with version.json files:"
           echo "$VERSION_JSON_PATHS"
 
@@ -65,6 +71,12 @@ jobs:
           MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
           echo "Modified Lambda folders:"
           echo "$MODIFIED_LAMBDAS"
+
+          # Check if any Lambdas were modified
+          if [ -z "$MODIFIED_LAMBDAS" ]; then
+            echo "No modified Lambda folders found. Exiting."
+            exit 0
+          fi
 
           # Save to file
           echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
@@ -110,12 +122,12 @@ jobs:
 
             # Install dependencies
             echo "Installing dependencies for $lambda..."
-            npm ci --only=prod
+            npm ci --only=prod || { echo "Failed to install dependencies for $lambda"; exit 1; }
 
             # Create zips folder
             mkdir -p ../../zips
             echo "Creating deployment package for $lambda..."
-            zip -r ../../zips/$lambda.zip .
+            zip -r ../../zips/$lambda.zip . || { echo "Failed to create zip for $lambda"; exit 1; }
             echo "Package created: zips/$lambda.zip"
 
             # Deploy to AWS Lambda
