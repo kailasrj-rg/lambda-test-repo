@@ -95,6 +95,9 @@ jobs:
               continue
             fi
 
+           # Extract Lambda name by removing the dev/ or prod/ prefix
+           lambda=$(echo "$lambda_path" | awk -F/ '{print $2}')
+
             echo "Processing Lambda: $lambda"
 
             # Check if Lambda folder exists
