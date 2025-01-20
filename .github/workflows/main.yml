@@ -98,7 +98,11 @@ jobs:
               continue
             fi
 
+            # Remove 'dev/' or 'prod/' prefix from Lambda folder path to get the Lambda function name
+            LAMBDA_NAME=$(echo "$lambda" | sed 's/^[^/]*\///')
+
             echo "Processing Lambda: $lambda"
+            echo "Deploying Lambda: $LAMBDA_NAME"
 
             # Check if Lambda folder exists
             if [ ! -d "lambdas/$lambda" ]; then
