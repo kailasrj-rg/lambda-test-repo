@@ -35,14 +35,20 @@ jobs:
         run: |
           echo "Detecting modified Lambda folders..."
           
+          # Check if we are in a shallow clone and fetch history if needed
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            echo "Repository is in shallow state. Fetching history..."
+            git fetch --unshallow || true
+          fi
+
           # Check if HEAD^ exists
           if git rev-parse --verify HEAD^ &>/dev/null; then
             echo "HEAD^ found. Fetching modified files since the last commit."
             MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
           else
-            echo "HEAD^ not found. Falling back to listing all tracked files."
-            git fetch --unshallow || true
-            MODIFIED_FILES=$(git diff --name-only $(git rev-list --max-parents=0 HEAD) HEAD)
+            echo "HEAD^ not found. Falling back to detecting changes from the first commit."
+            FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            MODIFIED_FILES=$(git diff --name-only $FIRST_COMMIT HEAD)
           fi
 
           echo "Modified files:"
