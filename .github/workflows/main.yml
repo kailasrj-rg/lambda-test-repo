@@ -44,33 +44,35 @@ jobs:
           echo "Modified Lambdas detected:"
           echo "$MODIFIED_LAMBDAS"
 
-          # Debug: Print each Lambda detected
-          for lambda in $MODIFIED_LAMBDAS; do
-            echo "Detected Lambda folder: $lambda"
-          done
-
-          # Save modified Lambdas to file
-          echo "$MODIFIED_LAMBDAS" > modified_lambdas.txt
+          # Save modified Lambdas to file (remove empty lines)
+          echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
+          echo "Contents of modified_lambdas.txt:"
           cat modified_lambdas.txt
 
           # Set output for next steps
           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas Exist
+      - name: Check if Modified Lambdas exist
         run: |
           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
-          if [ -s modified_lambdas.txt ]; then
-            echo "Modified Lambdas file contents:"
-            cat modified_lambdas.txt
-          else
+          if [ ! -s modified_lambdas.txt ]; then
             echo "No modified Lambdas found."
             exit 0
+          else
+            echo "Modified Lambdas file contents:"
+            cat modified_lambdas.txt
+          fi
 
       - name: Deploy Modified Lambdas
         if: steps.detect_changes.outputs.modified != ''
         run: |
           echo "Deploying modified Lambdas..."
           while IFS= read -r lambda; do
+            if [ -z "$lambda" ]; then
+              echo "Skipping empty line."
+              continue
+            fi
+
             echo "Processing Lambda: $lambda"
 
             # Check if Lambda folder exists
