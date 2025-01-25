@@ -1,0 +1,62 @@
+name: Deploy Lambdas (Prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to observe'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy_lambdas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '22'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy All Lambdas
+        run: |
+          echo "Deploying all Lambdas..."
+
+          # Loop through all Lambda folders
+          for lambda in lambdas/*; do
+            # Skip non-directories
+            if [ ! -d "$lambda" ]; then
+              continue
+            fi
+
+            lambda_name=$(basename "$lambda")
+            LAMBDA_NAME="prod_$lambda_name"
+            echo "Processing Lambda: $lambda_name"
+            echo "Deploying Lambda: $LAMBDA_NAME"
+
+            cd "$lambda"
+
+            # Install dependencies
+            echo "Installing dependencies for $lambda_name..."
+            npm ci --only=prod
+
+            # Zip Lambda folder
+            echo "Creating deployment package for $lambda_name..."
+            zip -r ../../"$lambda_name".zip .
+
+            # Deploy to AWS Lambda
+            echo "Deploying $LAMBDA_NAME to AWS..."
+            aws lambda update-function-code \
+              --function-name $LAMBDA_NAME \
+              --zip-file fileb://../../"$lambda_name".zip
+
+            echo "Successfully deployed $LAMBDA_NAME."
+            cd ../..
+          done

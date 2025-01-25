@@ -1,0 +1,127 @@
+name: Deploy Lambdas (Dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to observe'
+        required: true
+        default: 'main'
+  push:
+    branches:
+      - main
+    paths:
+      - 'lambdas/**'
+
+jobs:
+  deploy_lambdas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '22'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Detect Modified Lambdas
+        id: detect_changes
+        run: |
+          echo "Detecting modified Lambda folders..."
+          
+          # Check if we are in a shallow clone and fetch history if needed
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            echo "Repository is in shallow state. Fetching history..."
+            git fetch --unshallow || true
+          fi
+
+          # Check if HEAD^ exists
+          if git rev-parse --verify HEAD^ &>/dev/null; then
+            echo "HEAD^ found. Fetching modified files since the last commit."
+            MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
+          else
+            echo "HEAD^ not found. Falling back to detecting changes from the first commit."
+            FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            MODIFIED_FILES=$(git diff --name-only $FIRST_COMMIT HEAD)
+          fi
+
+          echo "Modified files:"
+          echo "$MODIFIED_FILES"
+
+          # Log paths containing version.json only
+          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*version\.json$')
+          echo "Paths with version.json files:"
+          echo "$VERSION_JSON_PATHS"
+
+          # Filter files belonging to Lambdas and extract folder names
+          MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2}' | sort | uniq)
+
+          echo "Modified Lambdas detected:"
+          echo "$MODIFIED_LAMBDAS"
+
+          # Save modified Lambdas to a file
+          echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
+          echo "Contents of modified_lambdas.txt:"
+          cat modified_lambdas.txt
+
+          # Set output for next steps
+          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
+
+      - name: Check if Modified Lambdas Exist
+        run: |
+          echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
+          if [ ! -s modified_lambdas.txt ]; then
+            echo "No modified Lambdas found."
+            exit 0
+          else
+            echo "Modified Lambdas file contents:"
+            cat modified_lambdas.txt
+          fi
+
+      - name: Deploy Modified Lambdas
+        if: steps.detect_changes.outputs.modified != ''
+        run: |
+          echo "Deploying modified Lambdas..."
+          while IFS= read -r lambda; do
+            if [ -z "$lambda" ]; then
+              echo "Skipping empty line."
+              continue
+            fi
+
+            # Adding 'dev_' prefix for deployment
+            LAMBDA_NAME="dev_$lambda"
+
+            echo "Processing Lambda: $lambda"
+            echo "Deploying Lambda: $LAMBDA_NAME"
+
+            # Check if Lambda folder exists
+            if [ ! -d "lambdas/$lambda" ]; then
+              echo "Warning: Folder 'lambdas/$lambda' does not exist. Skipping..."
+              continue
+            fi
+
+            cd lambdas/$lambda
+
+            # Install dependencies
+            echo "Installing dependencies for $lambda..."
+            npm ci --only=prod
+
+            # Zip Lambda folder
+            echo "Creating deployment package for $lambda..."
+            zip -r ../../$lambda.zip .
+
+            # Deploy to AWS Lambda
+            echo "Deploying $LAMBDA_NAME to AWS..."
+            aws lambda update-function-code \
+              --function-name $LAMBDA_NAME \
+              --zip-file fileb://../../$lambda.zip
+
+            echo "Successfully deployed $LAMBDA_NAME."
+            cd ../..
+          done < modified_lambdas.txt

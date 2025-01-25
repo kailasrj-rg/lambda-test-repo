@@ -1,132 +1,132 @@
-name: Deploy Lambdas
+# name: Deploy Lambdas
 
-on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to observe'
-        required: true
-        default: 'main'
-  push:
-    branches:
-      - main
-    paths:
-      - 'lambdas/**'
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       branch:
+#         description: 'Branch to observe'
+#         required: true
+#         default: 'main'
+#   push:
+#     branches:
+#       - main
+#     paths:
+#       - 'lambdas/**'
 
-jobs:
-  deploy_lambdas:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+# jobs:
+#   deploy_lambdas:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '22'
+#       - uses: actions/setup-node@v2
+#         with:
+#           node-version: '22'
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: us-east-1
 
-      - name: Detect Modified Lambdas
-        id: detect_changes
-        run: |
-          echo "Detecting modified Lambda folders..."
+#       - name: Detect Modified Lambdas
+#         id: detect_changes
+#         run: |
+#           echo "Detecting modified Lambda folders..."
           
-          # Check if we are in a shallow clone and fetch history if needed
-          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-            echo "Repository is in shallow state. Fetching history..."
-            git fetch --unshallow || true
-          fi
+#           # Check if we are in a shallow clone and fetch history if needed
+#           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+#             echo "Repository is in shallow state. Fetching history..."
+#             git fetch --unshallow || true
+#           fi
 
-          # Check if HEAD^ exists
-          if git rev-parse --verify HEAD^ &>/dev/null; then
-            echo "HEAD^ found. Fetching modified files since the last commit."
-            MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
-          else
-            echo "HEAD^ not found. Falling back to detecting changes from the first commit."
-            FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            MODIFIED_FILES=$(git diff --name-only $FIRST_COMMIT HEAD)
-          fi
+#           # Check if HEAD^ exists
+#           if git rev-parse --verify HEAD^ &>/dev/null; then
+#             echo "HEAD^ found. Fetching modified files since the last commit."
+#             MODIFIED_FILES=$(git diff --name-only HEAD^ HEAD)
+#           else
+#             echo "HEAD^ not found. Falling back to detecting changes from the first commit."
+#             FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD)
+#             MODIFIED_FILES=$(git diff --name-only $FIRST_COMMIT HEAD)
+#           fi
 
-          echo "Modified files:"
-          echo "$MODIFIED_FILES"
+#           echo "Modified files:"
+#           echo "$MODIFIED_FILES"
 
-          # Log paths containing version.json only
-          VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*/version\.json$' || true)
-          echo "Paths with version.json files:"
-          echo "$VERSION_JSON_PATHS"
+#           # Log paths containing version.json only
+#           VERSION_JSON_PATHS=$(echo "$MODIFIED_FILES" | grep '^lambdas/.*/version\.json$' || true)
+#           echo "Paths with version.json files:"
+#           echo "$VERSION_JSON_PATHS"
 
-          # Filter files belonging to Lambdas and extract folder names
-          if [ -n "$VERSION_JSON_PATHS" ]; then
-            MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
-          else
-            MODIFIED_LAMBDAS=""
-          fi
+#           # Filter files belonging to Lambdas and extract folder names
+#           if [ -n "$VERSION_JSON_PATHS" ]; then
+#             MODIFIED_LAMBDAS=$(echo "$VERSION_JSON_PATHS" | awk -F/ '{print $2 "/" $3}' | sort | uniq)
+#           else
+#             MODIFIED_LAMBDAS=""
+#           fi
 
-          echo "Modified Lambdas detected:"
-          echo "$MODIFIED_LAMBDAS"
+#           echo "Modified Lambdas detected:"
+#           echo "$MODIFIED_LAMBDAS"
 
-          # Save modified Lambdas to a file
-          echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
-          echo "Contents of modified_lambdas.txt:"
-          cat modified_lambdas.txt || echo "No Lambdas modified."
+#           # Save modified Lambdas to a file
+#           echo "$MODIFIED_LAMBDAS" | sed '/^$/d' > modified_lambdas.txt
+#           echo "Contents of modified_lambdas.txt:"
+#           cat modified_lambdas.txt || echo "No Lambdas modified."
 
-          # Set output for next steps
-          echo "::set-output name=modified::$MODIFIED_LAMBDAS"
+#           # Set output for next steps
+#           echo "::set-output name=modified::$MODIFIED_LAMBDAS"
 
-      - name: Check if Modified Lambdas Exist
-        run: |
-          echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
-          if [ ! -s modified_lambdas.txt ]; then
-            echo "No modified Lambdas found."
-            exit 0
-          else
-            echo "Modified Lambdas file contents:"
-            cat modified_lambdas.txt
-          fi
+#       - name: Check if Modified Lambdas Exist
+#         run: |
+#           echo "Modified Lambdas Output: ${{ steps.detect_changes.outputs.modified }}"
+#           if [ ! -s modified_lambdas.txt ]; then
+#             echo "No modified Lambdas found."
+#             exit 0
+#           else
+#             echo "Modified Lambdas file contents:"
+#             cat modified_lambdas.txt
+#           fi
 
-      - name: Deploy Modified Lambdas
-        if: steps.detect_changes.outputs.modified != ''
-        run: |
-          echo "Deploying modified Lambdas..."
-          while IFS= read -r lambda; do
-            if [ -z "$lambda" ]; then
-              echo "Skipping empty line."
-              continue
-            fi
+#       - name: Deploy Modified Lambdas
+#         if: steps.detect_changes.outputs.modified != ''
+#         run: |
+#           echo "Deploying modified Lambdas..."
+#           while IFS= read -r lambda; do
+#             if [ -z "$lambda" ]; then
+#               echo "Skipping empty line."
+#               continue
+#             fi
 
-            # Remove 'dev/' or 'prod/' prefix from Lambda folder path to get the Lambda function name
-            LAMBDA_NAME=$(echo "$lambda" | sed 's/^[^/]*\///')
+#             # Remove 'dev/' or 'prod/' prefix from Lambda folder path to get the Lambda function name
+#             LAMBDA_NAME=$(echo "$lambda" | sed 's/^[^/]*\///')
 
-            echo "Processing Lambda: $lambda"
-            echo "Deploying Lambda: $LAMBDA_NAME"
+#             echo "Processing Lambda: $lambda"
+#             echo "Deploying Lambda: $LAMBDA_NAME"
 
-            # Check if Lambda folder exists
-            if [ ! -d "lambdas/$lambda" ]; then
-              echo "Warning: Folder 'lambdas/$lambda' does not exist. Skipping..."
-              continue
-            fi
+#             # Check if Lambda folder exists
+#             if [ ! -d "lambdas/$lambda" ]; then
+#               echo "Warning: Folder 'lambdas/$lambda' does not exist. Skipping..."
+#               continue
+#             fi
 
-            echo "Deploying Lambda: $LAMBDA_NAME"
-            cd lambdas/$lambda
+#             echo "Deploying Lambda: $LAMBDA_NAME"
+#             cd lambdas/$lambda
 
-            # Install dependencies
-            echo "Installing dependencies for $LAMBDA_NAME..."
-            npm ci --only=prod
+#             # Install dependencies
+#             echo "Installing dependencies for $LAMBDA_NAME..."
+#             npm ci --only=prod
 
-            # Zip Lambda folder
-            echo "Creating deployment package for $LAMBDA_NAME..."
-            zip -r ../../$LAMBDA_NAME.zip . > /dev/null
+#             # Zip Lambda folder
+#             echo "Creating deployment package for $LAMBDA_NAME..."
+#             zip -r ../../$LAMBDA_NAME.zip . > /dev/null
 
-            # Deploy to AWS Lambda
-            echo "Deploying $LAMBDA_NAME to AWS..."
-            aws lambda update-function-code \
-              --function-name $LAMBDA_NAME \
-              --zip-file fileb://../../$LAMBDA_NAME.zip
+#             # Deploy to AWS Lambda
+#             echo "Deploying $LAMBDA_NAME to AWS..."
+#             aws lambda update-function-code \
+#               --function-name $LAMBDA_NAME \
+#               --zip-file fileb://../../$LAMBDA_NAME.zip
 
-            echo "Successfully deployed $lambda."
-            cd ../../..
-          done < modified_lambdas.txt
+#             echo "Successfully deployed $lambda."
+#             cd ../../..
+#           done < modified_lambdas.txt
